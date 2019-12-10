@@ -16,49 +16,31 @@ namespace Ddd_UoW_Sample.Controllers
     [ApiController]
     public class ValuesController : ControllerBase
     {
-        private readonly CircuitBreakerPolicy<PingResponse> _breakerPolicy;
-        private readonly HttpClient _httpClient;
         ElasticClient client;
-        public ValuesController(CircuitBreakerPolicy<PingResponse> breakerPolicy)
+        private CircuitBreakerPolicy<PingResponse> _circuitBreakerPolicy;
+        public ValuesController(CircuitBreakerPolicy<PingResponse> policy)
         {
-            _breakerPolicy = breakerPolicy;
             var configuration = new ConnectionSettings(new Uri("http://localhost:9200")).DefaultIndex("product");
             client = new ElasticClient(configuration);
+            _circuitBreakerPolicy = policy;
         }
+
+
         // GET api/values
         [HttpGet]
         public IActionResult Get()
         {
-            var inventoryResponse = _breakerPolicy.Execute(() => client.Ping());
-            System.Console.WriteLine($"Elastic status: {inventoryResponse.IsValid}");
+            EnsureAvailability();
+            var inventoryResponse = client.Ping();
 
-            return StatusCode((inventoryResponse.IsValid ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError), "hata var");
-            //return new string[] { "value1", "value2" };
+
+            return StatusCode((inventoryResponse.IsValid ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError), inventoryResponse.IsValid ? "sıkıntı yok" : "hata var");
         }
 
-        // GET api/values/5
-        [HttpGet("{id}")]
-        public ActionResult<string> Get(int id)
+        public void EnsureAvailability()
         {
-            return "value";
-        }
-
-        // POST api/values
-        [HttpPost]
-        public void Post([FromBody] string value)
-        {
-        }
-
-        // PUT api/values/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
-        {
-        }
-
-        // DELETE api/values/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
+            var response = _circuitBreakerPolicy.Execute(() => client.Ping());
+            System.Console.WriteLine($"Elastic status: {_circuitBreakerPolicy.CircuitState}");
         }
     }
 }
