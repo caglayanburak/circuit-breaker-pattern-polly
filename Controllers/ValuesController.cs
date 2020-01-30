@@ -1,14 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Threading.Tasks;
+using circuit_breaker_pattern_polly.Models;
 using Microsoft.AspNetCore.Mvc;
 using Nest;
-using Polly;
 using Polly.CircuitBreaker;
-using Polly.Retry;
 
 namespace Ddd_UoW_Sample.Controllers
 {
@@ -17,30 +12,37 @@ namespace Ddd_UoW_Sample.Controllers
     public class ValuesController : ControllerBase
     {
         ElasticClient client;
-        private CircuitBreakerPolicy<PingResponse> _circuitBreakerPolicy;
-        public ValuesController(CircuitBreakerPolicy<PingResponse> policy)
+        private CircuitBreakerPolicy<ISearchResponse<InventoryItem>> _circuitBreakerPolicy;
+        public ValuesController(CircuitBreakerPolicy<ISearchResponse<InventoryItem>> policy)
         {
             var configuration = new ConnectionSettings(new Uri("http://localhost:9200")).DefaultIndex("product");
             client = new ElasticClient(configuration);
             _circuitBreakerPolicy = policy;
         }
 
-
         // GET api/values
         [HttpGet]
         public IActionResult Get()
         {
-            EnsureAvailability();
-            var inventoryResponse = client.Ping();
+            // if (_circuitBreakerPolicy.CircuitState == CircuitState.Open)
+            // {
+            //     //todo:
+            // }
 
-
+            var inventoryResponse = Search();
             return StatusCode((inventoryResponse.IsValid ? (int)HttpStatusCode.OK : (int)HttpStatusCode.InternalServerError), inventoryResponse.IsValid ? "sıkıntı yok" : "hata var");
         }
 
-        public void EnsureAvailability()
+        public ISearchResponse<InventoryItem> Search()
         {
-            var response = _circuitBreakerPolicy.Execute(() => client.Ping());
+            var response = _circuitBreakerPolicy.Execute(() => client.Search<InventoryItem>(s => s
+                  .Index("index_name")
+                  .Query(q => q
+                      .Match(m => m
+                          .Field(field => field.Code.Suffix("keyword"))
+                          .Query("test")))));
             System.Console.WriteLine($"Elastic status: {_circuitBreakerPolicy.CircuitState}");
+            return response;
         }
     }
 }

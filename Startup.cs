@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
+using circuit_breaker_pattern_polly.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -32,11 +33,11 @@ namespace Ddd_UoW_Sample
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            CircuitBreakerPolicy<PingResponse> breakerPolicy = Polly.Policy
-            .HandleResult<PingResponse>(r => !r.IsValid)
+            CircuitBreakerPolicy<ISearchResponse<InventoryItem>> breakerPolicy = Polly.Policy
+            .HandleResult<ISearchResponse<InventoryItem>>(r => !r.IsValid)
             .CircuitBreaker(2, TimeSpan.FromSeconds(5), OnBreak, OnReset, onHalfOpen: OnHalfOpen);
 
-            services.AddSingleton<CircuitBreakerPolicy<PingResponse>>(breakerPolicy);
+            services.AddSingleton<CircuitBreakerPolicy<ISearchResponse<InventoryItem>>>(breakerPolicy);
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
@@ -68,7 +69,7 @@ namespace Ddd_UoW_Sample
             Console.WriteLine("\t\t\t\t\tConnection reset");
         }
 
-        private void OnBreak(DelegateResult<PingResponse> delegateResult, TimeSpan timeSpan, Polly.Context context)
+        private void OnBreak(DelegateResult<ISearchResponse<InventoryItem>> delegateResult, TimeSpan timeSpan, Polly.Context context)
         {
             Console.WriteLine($"\t\t\t\t\tConnection break: {delegateResult.Result.IsValid}");
         }
